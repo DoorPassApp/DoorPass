@@ -26,6 +26,17 @@ On first launch, DoorPass asks for an administrator password once to install its
 - `desktop/` is DoorPass: the app (Go and [Wails](https://wails.io), drawn with the system web view), the privileged helper, packaging and the build script. Building, testing and the design are documented in [`desktop/README.md`](desktop/README.md).
 - `Android/` is the upstream Intra Android app. DoorPass uses its Go networking core in `Android/app/src/go/` unchanged, which is why it is kept here; the Android app itself is not part of DoorPass.
 
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+- Committers and reviewers: [DoorPassApp members](https://github.com/orgs/DoorPassApp/people)
+- Approvers: [Owners](https://github.com/orgs/DoorPassApp/people?query=role%3Aowner)
+
+Windows releases are built from this repository's source by [GitHub Actions](.github/workflows/windows.yml) and each signing request is approved by hand. Only DoorPass's own files are signed with this certificate; the bundled Wintun driver keeps WireGuard's signature.
+
+Privacy policy: this program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. Turning protection on sends DNS lookups to the DNS-over-HTTPS server the user selects; see [PRIVACY.md](PRIVACY.md).
+
 ## Credits and license
 
 DoorPass is created and maintained by [To Anh Tuan (@kylin266)](https://github.com/kylin266). It is built on Intra by Jigsaw Operations LLC and keeps Intra's history, which is why Intra's developers appear among the contributors. Both are released under the [Apache License 2.0](LICENSE). The Windows helper ships the [Wintun](https://www.wintun.net/) driver, under its own license (included in the installer).

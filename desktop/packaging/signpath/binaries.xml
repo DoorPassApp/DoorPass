@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SignPath artifact configuration "binaries": DoorPass.exe and the helper,
+     signed before the installer is built. wintun.dll is not included; it keeps
+     WireGuard's signature. -->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <zip-file>
+    <pe-file-set product-name="DoorPass" product-version="${version}">
+      <include path="DoorPass.exe" />
+      <include path="helper/doorpass-helper.exe" />
+      <for-each>
+        <authenticode-sign />
+      </for-each>
+    </pe-file-set>
+  </zip-file>
+</artifact-configuration>

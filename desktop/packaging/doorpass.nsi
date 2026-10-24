@@ -24,6 +24,13 @@ VIAddVersionKey "LegalCopyright" "Based on Intra by Jigsaw Operations LLC. Apach
 !define MUI_FINISHPAGE_RUN "$INSTDIR\DoorPass.exe"
 !define MUI_FINISHPAGE_RUN_TEXT "Open DoorPass"
 
+; What DoorPass changes and sends, shown before anything is installed.
+!define MUI_PAGE_HEADER_TEXT "Before you install"
+!define MUI_PAGE_HEADER_SUBTEXT "What DoorPass changes on this computer, and what it sends."
+!define MUI_LICENSEPAGE_TEXT_TOP "Please read this before installing DoorPass."
+!define MUI_LICENSEPAGE_BUTTON "&Next >"
+!define MUI_LICENSEPAGE_TEXT_BOTTOM "Click Next to continue."
+!insertmacro MUI_PAGE_LICENSE "install-notice.txt"
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH

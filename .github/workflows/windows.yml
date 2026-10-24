@@ -1,0 +1,131 @@
+name: Windows release
+
+# Builds the Windows binaries and installer from source, and, once the
+# SignPath variables and secret are set, has SignPath sign them in two steps:
+# the binaries first, then the installer built from them. Pushing a tag vX.Y.Z
+# attaches the installer to that GitHub release (created as a pre-release if
+# it doesn't exist yet). Without SignPath configured the build is unsigned.
+#
+# Repository settings used (Settings > Secrets and variables > Actions):
+#   secret   SIGNPATH_API_TOKEN
+#   variable SIGNPATH_ORGANIZATION_ID
+#   variable SIGNPATH_PROJECT_SLUG          (e.g. DoorPass)
+#   variable SIGNPATH_SIGNING_POLICY_SLUG   (e.g. release-signing)
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write # attach the installer to the release
+
+jobs:
+  windows:
+    runs-on: ubuntu-24.04
+    env:
+      SIGN: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            desktop/app/go.sum
+
+      - name: Install the Windows cross compiler and NSIS
+        run: sudo apt-get update -q && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q gcc-mingw-w64-x86-64 nsis
+
+      - name: Read the version
+        id: version
+        run: |
+          v="$(tr -d '[:space:]' < desktop/VERSION)"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" != "v$v" ]]; then
+            echo "Tag $GITHUB_REF_NAME does not match desktop/VERSION ($v)" >&2
+            exit 1
+          fi
+
+      - name: Build the Windows binaries
+        run: desktop/build.sh win-bin
+
+      - name: Upload the unsigned binaries
+        id: upload-binaries
+        if: env.SIGN == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-binaries
+          path: |
+            desktop/build/win/app/DoorPass.exe
+            desktop/build/win/app/helper/doorpass-helper.exe
+          if-no-files-found: error
+
+      - name: Sign the binaries
+        if: env.SIGN == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: binaries
+          github-artifact-id: ${{ steps.upload-binaries.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 86400 # manual approval
+          output-artifact-directory: desktop/build/win/signed
+          parameters: |
+            version: "${{ steps.version.outputs.version }}"
+
+      - name: Use the signed binaries
+        if: env.SIGN == 'true'
+        run: cp -R desktop/build/win/signed/. desktop/build/win/app/
+
+      - name: Build the installer
+        run: RELEASE_DIR="$PWD/desktop/dist" desktop/build.sh win-installer
+
+      - name: Upload the unsigned installer
+        id: upload-installer
+        if: env.SIGN == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-installer
+          path: desktop/dist/DoorPass-${{ steps.version.outputs.version }}-win-x64-setup.exe
+          if-no-files-found: error
+
+      - name: Sign the installer
+        if: env.SIGN == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.upload-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 86400 # manual approval
+          output-artifact-directory: desktop/dist
+          parameters: |
+            version: "${{ steps.version.outputs.version }}"
+
+      - name: Upload the installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: DoorPass-${{ steps.version.outputs.version }}-win-x64-setup
+          path: desktop/dist/DoorPass-${{ steps.version.outputs.version }}-win-x64-setup.exe
+          if-no-files-found: error
+
+      - name: Attach to the release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="$GITHUB_REF_NAME"
+          setup="desktop/dist/DoorPass-${{ steps.version.outputs.version }}-win-x64-setup.exe"
+          gh release view "$tag" >/dev/null 2>&1 ||
+            gh release create "$tag" --prerelease --title "DoorPass ${tag#v}" --notes "Windows build from ${GITHUB_SHA::7}."
+          (cd "$(dirname "$setup")" && sha256sum "$(basename "$setup")" > "$(basename "$setup").sha256")
+          gh release upload "$tag" "$setup" "$setup.sha256" --clobber

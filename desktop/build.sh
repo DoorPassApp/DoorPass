@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Builds DoorPass: one universal macOS DMG (Apple silicon + Intel) and the
 # Windows x64 installer.
-# Usage: desktop/build.sh [mac|win|all]   (default: all)
+# Usage: desktop/build.sh [mac|win|all|win-bin|win-installer]   (default: all)
+#   win-bin        Windows binaries only (build/win/app), for signing in CI
+#   win-installer  the installer from build/win/app, e.g. after signing
+# The Windows targets also run on Linux (see .github/workflows/windows.yml).
 #
 # Needs: Go (version from go.mod), the Xcode Command Line Tools (clang, lipo,
 # codesign, iconutil, hdiutil), and for Windows x86_64-w64-mingw32-gcc
@@ -107,16 +110,14 @@ build_mac() {
   cp "${out}/DoorPass-${VERSION}-mac.dmg" "${RELEASE_DIR}/"
 }
 
-build_win() {
+build_win_bin() {
   build_helper windows amd64 win-x64 x86_64-w64-mingw32-gcc
   fetch_wintun
   local out="${BUILD}/win"
   rm -rf "${out}" && mkdir -p "${out}/app/helper"
 
   # Icon under the IDs Wails loads (3 for tray / dialogs, 32512 for the window
-  # and taskbar), version info and manifest. The installer gets the .ico.
-  sips -z 256 256 "${APP}/assets/icon.png" --out "${out}/icon256.png" >/dev/null
-  sips -s format ico "${out}/icon256.png" --out "${out}/icon.ico" >/dev/null
+  # and taskbar), version info and manifest.
   winres winres-app.json "${APP}"
 
   echo "==> DoorPass ${VERSION} for windows/amd64"
@@ -124,8 +125,12 @@ build_win() {
     go build -trimpath -ldflags "${LDFLAGS} -H windowsgui" -o "${out}/app/DoorPass.exe" .)
   rm -f "${APP}"/rsrc_windows_*.syso
   cp "${APP}/helper/win-x64/"* "${out}/app/helper/"
+}
 
-  cp "${PKG}/doorpass.nsi" "${out}/"
+build_win_installer() {
+  local out="${BUILD}/win"
+  [[ -f "${out}/app/DoorPass.exe" ]] || { echo "run win-bin first" >&2; exit 1; }
+  cp "${PKG}/doorpass.nsi" "${PKG}/install-notice.txt" "${PKG}/icon.ico" "${out}/"
   local setup="DoorPass-${VERSION}-win-x64-setup.exe"
   if command -v makensis >/dev/null; then
     (cd "${out}" && makensis -V2 -DVERSION="${VERSION}" -DSRC=app -DICON=icon.ico -DOUTFILE="${setup}" doorpass.nsi)
@@ -138,14 +143,22 @@ build_win() {
   cp "${out}/${setup}" "${RELEASE_DIR}/"
 }
 
-(cd "${ROOT}" && go vet ./desktop/helper && go test ./desktop/helper)
-(cd "${APP}" && go vet .)
+vet() { # GOOS
+  (cd "${ROOT}" && go vet ./desktop/helper && go test ./desktop/helper)
+  if [[ "$1" == "darwin" ]]; then
+    (cd "${APP}" && env "${MAC_ENV[@]}" GOOS=darwin CGO_ENABLED=1 go vet . 2>&1 | grep -v 'ld: warning' || true)
+  else
+    (cd "${APP}" && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go vet .)
+  fi
+}
 
 case "${TARGET}" in
-  mac) build_mac ;;
-  win) build_win ;;
-  all) build_mac; build_win ;;
-  *) echo "usage: $0 [mac|win|all]" >&2; exit 2 ;;
+  mac) vet darwin; build_mac ;;
+  win) vet windows; build_win_bin; build_win_installer ;;
+  all) vet darwin; build_mac; vet windows; build_win_bin; build_win_installer ;;
+  win-bin) vet windows; build_win_bin; echo "==> Binaries in ${BUILD}/win/app"; exit 0 ;;
+  win-installer) build_win_installer ;;
+  *) echo "usage: $0 [mac|win|all|win-bin|win-installer]" >&2; exit 2 ;;
 esac
 
 (cd "${RELEASE_DIR}" && rm -f ._* && shasum -a 256 DoorPass-* > SHA256SUMS.txt && rm -f ._*)

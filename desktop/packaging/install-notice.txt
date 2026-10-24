@@ -1,0 +1,24 @@
+Before you install DoorPass
+
+WHAT DOORPASS CHANGES ON THIS COMPUTER
+
+Installing DoorPass copies the app to your user folder and adds a Start menu shortcut. Nothing else changes until you open DoorPass.
+
+The first time you open it, DoorPass asks for administrator permission to install its helper: the "DoorPass Helper" Windows service in C:\Program Files\DoorPass Helper, together with the Wintun virtual network adapter from WireGuard.
+
+While protection is turned on, the helper:
+  - points your computer's DNS settings at DoorPass's local tunnel, and
+  - in Full mode, routes your IPv4 traffic through that tunnel on this computer so it can split the TLS handshake of HTTPS connections.
+Turning protection off, or quitting DoorPass, puts these settings back.
+
+WHAT DOORPASS SENDS, AND WHERE
+
+DoorPass sends nothing until you turn protection on. While it is on, your DNS lookups are sent, encrypted, to the DNS-over-HTTPS server selected in DoorPass. The default is Google Public DNS; you can choose another server, or your own, before turning protection on. That server's own privacy policy applies to those lookups.
+
+DoorPass has no analytics, telemetry or crash reporting, and sends nothing to its developers. The optional query log (off by default) stays on this computer.
+
+UNINSTALLING
+
+In DoorPass, open the main window and choose Helper > Uninstall helper, then remove DoorPass from Settings > Apps > Installed apps. Uninstalling the app also offers to remove the helper.
+
+Full privacy policy: https://github.com/DoorPassApp/DoorPass/blob/main/PRIVACY.md
