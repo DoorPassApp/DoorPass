@@ -1,0 +1,6 @@
+app/node_modules/
+app/dist/
+app/helper/*/doorpass-helper
+app/helper/*/doorpass-helper.exe
+app/helper/*/wintun.dll
+app/helper/*/wintun-LICENSE.txt

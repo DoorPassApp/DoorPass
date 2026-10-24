@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#375534"/>
+      <stop offset="1" stop-color="#0f2a1d"/>
+    </linearGradient>
+    <linearGradient id="light" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff6d8"/>
+      <stop offset=".55" stop-color="#f8dc8c"/>
+      <stop offset="1" stop-color="#f2c45a"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="1.6"/>
+    </filter>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="184" fill="url(#bg)"/>
+  <rect x="100.5" y="100.5" width="823" height="823" rx="183.5" fill="none" stroke="#ffffff" stroke-opacity=".08"/>
+  <g transform="translate(152 152) scale(30)">
+    <path d="M10.1 21V4.1h9.3V21Z" fill="#f2c45a" filter="url(#glow)"/><path d="M10.1 21V4.1h9.3V21Z" fill="url(#light)"/><path d="M9 3.2 3.4 5.4v14.2l5.6 1.4Z" fill="#1d3a28"/><path d="M9 3.2 3.4 5.4v14.2l5.6 1.4" fill="none" stroke="#aec3b0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5.9" cy="12.4" r="1.05" fill="#aec3b0"/><path d="M9 21V4.5A1.5 1.5 0 0 1 10.5 3h8.5A1.5 1.5 0 0 1 20.5 4.5V21" fill="none" stroke="#aec3b0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 21h20" fill="none" stroke="#aec3b0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

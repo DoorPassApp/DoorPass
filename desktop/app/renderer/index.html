@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:">
+  <title>DoorPass</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="hero" id="hero">
+    <div class="orb" aria-hidden="true">
+      <svg class="orb-icon" viewBox="0 0 24 24">
+        <g class="door-closed"><path class="orb-line" d="M5.5 21V4.5A1.5 1.5 0 0 1 7 3h10A1.5 1.5 0 0 1 18.5 4.5V21M2 21h20"/><circle class="orb-dot" cx="15.3" cy="12.4" r="1.2"/></g>
+        <g class="door-open"><path class="orb-fill" d="M10.1 21V4.1h9.3V21Z"/><path class="orb-line" d="M9 3.2 3.4 5.4v14.2l5.6 1.4M9 21V4.5A1.5 1.5 0 0 1 10.5 3h8.5A1.5 1.5 0 0 1 20.5 4.5V21M2 21h20"/><circle class="orb-dot" cx="5.9" cy="12.4" r="1.05"/></g>
+      </svg>
+    </div>
+    <div class="hero-text">
+      <h1 id="state-title">Checking…</h1>
+      <p id="state-detail">Connecting to the DoorPass helper.</p>
+      <p id="state-uptime" class="uptime" hidden></p>
+    </div>
+    <button id="power" class="power" type="button" aria-pressed="false" disabled>
+      <span class="power-knob"></span>
+      <span class="sr-only">Turn protection on or off</span>
+    </button>
+  </header>
+
+  <section id="install-banner" class="banner" hidden>
+    <div>
+      <strong id="install-title">One-time setup</strong>
+      <p id="install-text">DoorPass needs a small background helper to set up its encrypted DNS tunnel. Your system will ask for an administrator password once.</p>
+    </div>
+    <button id="install" type="button" class="primary">Install helper</button>
+  </section>
+
+  <p id="error" class="error" role="alert" hidden></p>
+
+  <main>
+    <section class="card settings">
+      <h2>Settings</h2>
+      <label class="field">
+        <span>DNS-over-HTTPS server</span>
+        <select id="server"></select>
+      </label>
+      <label class="field" id="custom-field" hidden>
+        <span>Custom server URL</span>
+        <input id="custom-url" type="url" placeholder="https://example.com/dns-query" spellcheck="false">
+      </label>
+      <p class="server-meta"><span id="server-ips"></span></p>
+      <div class="row">
+        <button id="probe" type="button">Test server</button>
+        <span id="probe-result" class="muted"></span>
+      </div>
+
+      <fieldset class="field">
+        <legend>Protection</legend>
+        <label class="radio"><input type="radio" name="mode" value="full">
+          <span><strong>Full</strong>: encrypted DNS, plus TLS splitting on HTTPS connections to get around blocking. All IPv4 traffic goes through DoorPass's tunnel on this computer.</span></label>
+        <label class="radio"><input type="radio" name="mode" value="dns">
+          <span><strong>DNS only</strong>: encrypts lookups only. Other traffic is untouched.</span></label>
+      </fieldset>
+
+      <label class="check"><input id="auto-connect" type="checkbox"> Turn on when DoorPass starts</label>
+      <label class="check"><input id="query-log" type="checkbox"> Query log (records domain names; turn on only to check something)</label>
+      <label class="check"><input id="login" type="checkbox"> Open DoorPass at login</label>
+
+      <details class="advanced">
+        <summary>Helper</summary>
+        <p class="muted" id="helper-info"></p>
+        <button id="uninstall" type="button">Uninstall helper</button>
+      </details>
+    </section>
+
+    <section class="card">
+      <h2>This session</h2>
+      <div class="stats">
+        <div class="stat"><span id="s-queries">0</span><label>Queries</label></div>
+        <div class="stat"><span id="s-latency">–</span><label>Avg latency</label></div>
+        <div class="stat"><span id="s-failures">0</span><label>Failures</label></div>
+        <div class="stat"><span id="s-splits">0</span><label>TLS splits</label></div>
+      </div>
+      <div id="query-log-panel" hidden>
+        <h2 class="queries-title">Recent queries <span id="q-count" class="muted"></span></h2>
+        <input id="filter" type="search" placeholder="Filter by domain" spellcheck="false">
+        <ol id="queries" class="queries"></ol>
+        <p id="queries-empty" class="muted empty">Queries appear here once protection is on.</p>
+      </div>
+      <p id="query-log-off" class="muted empty">Query log is off. Turn it on in Settings when you need to check which domains are looked up.</p>
+    </section>
+  </main>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

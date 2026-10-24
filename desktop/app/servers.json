@@ -1,0 +1,82 @@
+[
+  {
+    "name": "Google Public DNS",
+    "url": "https://dns.google/dns-query",
+    "ips": "8.8.8.8,8.8.4.4,2001:4860:4860::8888,2001:4860:4860::8844"
+  },
+  {
+    "name": "Cloudflare 1.1.1.1 DNS",
+    "url": "https://cloudflare-dns.com/dns-query",
+    "ips": "1.1.1.1,1.0.0.1,2606:4700:4700::1111,2606:4700:4700::1001,cloudflare.com"
+  },
+  {
+    "name": "Quad9 Secure DNS",
+    "url": "https://dns.quad9.net/dns-query",
+    "ips": "9.9.9.9,149.112.112.112,2620:fe::fe,2620:fe::fe:9"
+  },
+  {
+    "name": "CleanBrowsing Security Filter",
+    "url": "https://doh.cleanbrowsing.org/doh/security-filter/",
+    "ips": "185.228.168.9,185.228.169.9,2a0d:2a00:1::2,2a0d:2a00:2::2"
+  },
+  {
+    "name": "Foundation for Applied Privacy",
+    "url": "https://doh.applied-privacy.net/query",
+    "ips": "doh.appliedprivacy.net"
+  },
+  {
+    "name": "DNS.SB",
+    "url": "https://doh.dns.sb/dns-query",
+    "ips": "cloudflare.net"
+  },
+  {
+    "name": "Internet Initiative Japan",
+    "url": "https://public.dns.iij.jp/dns-query",
+    "ips": ""
+  },
+  {
+    "name": "TWNIC Quad101",
+    "url": "https://dns.twnic.tw/dns-query",
+    "ips": ""
+  },
+  {
+    "name": "FAELIX",
+    "url": "https://rdns.faelix.net/",
+    "ips": ""
+  },
+  {
+    "name": "Andrews & Arnold",
+    "url": "https://dns.aa.net.uk/dns-query",
+    "ips": "217.169.20.22,217.169.20.23,2001:8b0::2022,201:8b0::2023"
+  },
+  {
+    "name": "42l Association",
+    "url": "https://doh.42l.fr/dns-query",
+    "ips": "45.155.171.163,2a09:6382:4000:3:45:155:171:163"
+  },
+  {
+    "name": "Digitale Gesellschaft",
+    "url": "https://dns.digitale-gesellschaft.ch/dns-query",
+    "ips": "185.95.218.42,185.95.218.43,2a05:fc84::42,2a05:fc84::43"
+  },
+  {
+    "name": "Snopyta",
+    "url": "https://fi.doh.dns.snopyta.org/dns-query",
+    "ips": "95.216.24.230,2a01:4f9:2a:1919::9301"
+  },
+  {
+    "name": "OpenDNS",
+    "url": "https://doh.opendns.com/dns-query",
+    "ips": "146.112.41.2,2620:119:fc::2"
+  },
+  {
+    "name": "DNSlify",
+    "url": "https://doh.dnslify.com/dns-query",
+    "ips": "185.235.81.1,2a0d:4d00:81::1"
+  },
+  {
+    "name": "Canadian Shield",
+    "url": "https://private.canadianshield.cira.ca/dns-query",
+    "ips": "149.112.121.10,149.112.122.10,2620:10a:80bb::10,2620:10a:80bc::10"
+  }
+]
