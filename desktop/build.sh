@@ -34,15 +34,22 @@ fi
 # Go 1.27 itself needs macOS 13.
 MAC_ENV=(MACOSX_DEPLOYMENT_TARGET=13.0 CGO_CFLAGS=-mmacosx-version-min=13.0 CGO_LDFLAGS=-mmacosx-version-min=13.0)
 
+# Windows resources (icon, version info, manifest) as a .syso next to main.
+winres() { # CONFIG OUTDIR
+  (cd "${PKG}" && go run "${GOWINRES}" make --in "$1" --out "$2/rsrc" --arch amd64 \
+    --product-version "${VERSION}" --file-version "${VERSION}")
+}
+
 build_helper() { # GOOS GOARCH OUTDIR [CC]
   local out="${APP}/helper/$3" exe="doorpass-helper"
-  [[ "$1" == "windows" ]] && exe="doorpass-helper.exe"
+  [[ "$1" == "windows" ]] && exe="doorpass-helper.exe" && winres winres-helper.json "${DESKTOP}/helper"
   mkdir -p "${out}"
   echo "==> doorpass-helper ${VERSION} for $1/$2"
   local envs=()
   [[ "$1" == "darwin" ]] && envs=("${MAC_ENV[@]}")
   (cd "${ROOT}" && env ${envs[@]+"${envs[@]}"} GOOS="$1" GOARCH="$2" CGO_ENABLED=1 CC="${4:-}" \
     go build -trimpath -ldflags "${LDFLAGS}" -o "${out}/${exe}" ./desktop/helper 2>&1 | grep -v 'ld: warning' || true)
+  rm -f "${DESKTOP}"/helper/rsrc_windows_*.syso
   [[ -f "${out}/${exe}" ]] || { echo "helper build failed for $1/$2" >&2; exit 1; }
 }
 
@@ -106,12 +113,11 @@ build_win() {
   local out="${BUILD}/win"
   rm -rf "${out}" && mkdir -p "${out}/app/helper"
 
-  # Icon and Windows manifest (DPI awareness, common controls) for the exe.
+  # Icon under the IDs Wails loads (3 for tray / dialogs, 32512 for the window
+  # and taskbar), version info and manifest. The installer gets the .ico.
   sips -z 256 256 "${APP}/assets/icon.png" --out "${out}/icon256.png" >/dev/null
   sips -s format ico "${out}/icon256.png" --out "${out}/icon.ico" >/dev/null
-  (cd "${APP}" && go run "${GOWINRES}" simply --arch amd64 --icon "${out}/icon256.png" --manifest gui \
-    --product-name DoorPass --product-version "${VERSION}" --file-version "${VERSION}" \
-    --file-description DoorPass --copyright "Based on Intra by Jigsaw Operations LLC" --out rsrc)
+  winres winres-app.json "${APP}"
 
   echo "==> DoorPass ${VERSION} for windows/amd64"
   (cd "${APP}" && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \

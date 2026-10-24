@@ -6,3 +6,4 @@ app/helper/*/wintun.dll
 app/helper/*/wintun-LICENSE.txt
 app/rsrc_windows_*.syso
 app/DoorPass-dev
+helper/rsrc_windows_*.syso

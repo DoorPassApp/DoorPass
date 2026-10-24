@@ -1,4 +1,6 @@
-# DoorPass
+<p align="center"><img src="desktop/app/assets/icon.png" width="128" alt="DoorPass logo: a door, open and lit when protection is on"></p>
+
+<h1 align="center">DoorPass</h1>
 
 DoorPass encrypts your computer's DNS lookups and gets around simple website blocking, on macOS and Windows. It is a desktop port of [Intra](https://github.com/Jigsaw-Code/Intra), Jigsaw's Android app, and runs the same networking code.
 

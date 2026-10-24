@@ -18,13 +18,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
-)
+	"unsafe"
 
-const createNoWindow = 0x08000000
+	"golang.org/x/sys/windows"
+)
 
 // helperBinary finds doorpass-helper.exe (with wintun.dll beside it) in the
 // helper folder next to DoorPass.exe, or helper\win-x64 in a development
@@ -46,10 +45,36 @@ func helperBinary() (string, error) {
 	return "", errors.New("doorpass-helper.exe is missing from the app")
 }
 
-func psQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
+// shellExecuteInfo is SHELLEXECUTEINFOW.
+type shellExecuteInfo struct {
+	cbSize         uint32
+	fMask          uint32
+	hwnd           uintptr
+	lpVerb         *uint16
+	lpFile         *uint16
+	lpParameters   *uint16
+	lpDirectory    *uint16
+	nShow          int32
+	hInstApp       uintptr
+	lpIDList       uintptr
+	lpClass        *uint16
+	hkeyClass      uintptr
+	dwHotKey       uint32
+	hIconOrMonitor uintptr
+	hProcess       windows.Handle
+}
+
+const (
+	seeMaskNoCloseProcess = 0x00000040
+	seeMaskNoAsync        = 0x00000100
+	swHide                = 0
+)
+
+var procShellExecuteExW = windows.NewLazySystemDLL("shell32.dll").NewProc("ShellExecuteExW")
 
 // runElevated runs the helper with args as Administrator after one UAC
-// prompt, and waits for it.
+// prompt, the way Windows elevates a program itself (no script host), and
+// waits for it.
 func runElevated(args ...string) error {
 	bin, err := helperBinary()
 	if err != nil {
@@ -57,22 +82,40 @@ func runElevated(args ...string) error {
 	}
 	quoted := make([]string, len(args))
 	for i, a := range args {
-		quoted[i] = psQuote(a)
+		quoted[i] = windows.EscapeArg(a)
 	}
-	script := fmt.Sprintf("$p = Start-Process -FilePath %s -ArgumentList %s -Verb RunAs -WindowStyle Hidden -Wait -PassThru; exit $p.ExitCode",
-		psQuote(bin), strings.Join(quoted, ","))
-	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script)
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		msg := strings.TrimSpace(string(out))
-		if strings.Contains(strings.ToLower(msg), "canceled") || strings.Contains(strings.ToLower(msg), "cancelled") {
+	verb, _ := windows.UTF16PtrFromString("runas")
+	file, _ := windows.UTF16PtrFromString(bin)
+	params, _ := windows.UTF16PtrFromString(strings.Join(quoted, " "))
+	dir, _ := windows.UTF16PtrFromString(filepath.Dir(bin))
+	info := shellExecuteInfo{
+		fMask:        seeMaskNoCloseProcess | seeMaskNoAsync,
+		lpVerb:       verb,
+		lpFile:       file,
+		lpParameters: params,
+		lpDirectory:  dir,
+		nShow:        swHide,
+	}
+	info.cbSize = uint32(unsafe.Sizeof(info))
+	if ok, _, callErr := procShellExecuteExW.Call(uintptr(unsafe.Pointer(&info))); ok == 0 {
+		if errors.Is(callErr, windows.ERROR_CANCELLED) {
 			return errors.New("Cancelled")
 		}
-		if msg == "" {
-			msg = fmt.Sprintf("helper exited with %v", err)
-		}
-		return errors.New(msg)
+		return fmt.Errorf("could not start the helper: %w", callErr)
+	}
+	if info.hProcess == 0 {
+		return errors.New("could not start the helper")
+	}
+	defer windows.CloseHandle(info.hProcess)
+	if _, err := windows.WaitForSingleObject(info.hProcess, windows.INFINITE); err != nil {
+		return err
+	}
+	var code uint32
+	if err := windows.GetExitCodeProcess(info.hProcess, &code); err != nil {
+		return err
+	}
+	if code != 0 {
+		return fmt.Errorf("the helper failed (exit code %d); see C:\\ProgramData\\DoorPassHelper\\helper.log", code)
 	}
 	return nil
 }

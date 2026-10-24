@@ -52,11 +52,16 @@ var (
 
 func configPath() string { return filepath.Join(dataDir, "config.json") }
 
+// logOutput sends the service's log, and install / uninstall runs (started
+// elevated, with no console the app could read), to helper.log.
 func logOutput(cmd string) io.Writer {
-	if cmd != "run" {
-		return os.Stderr
-	}
-	if isService, _ := svc.IsWindowsService(); !isService {
+	switch cmd {
+	case "run":
+		if isService, _ := svc.IsWindowsService(); !isService {
+			return os.Stderr
+		}
+	case "install", "uninstall":
+	default:
 		return os.Stderr
 	}
 	os.MkdirAll(dataDir, 0o700)
@@ -64,7 +69,10 @@ func logOutput(cmd string) io.Writer {
 	if err != nil {
 		return os.Stderr
 	}
-	return f
+	if cmd == "run" {
+		return f
+	}
+	return io.MultiWriter(os.Stderr, f)
 }
 
 func openTun() (tun.Device, string, error) {
