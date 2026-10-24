@@ -55,7 +55,7 @@ func dataDir() string {
 func dataFile(name string) string { return filepath.Join(dataDir(), name) }
 
 func defaultSettings(servers []Server) Settings {
-	return Settings{URL: servers[1].URL, Mode: "full"} // Cloudflare, as on Android.
+	return Settings{URL: servers[0].URL, Mode: "full"} // Google Public DNS and Full mode: Intra's defaults on Android.
 }
 
 func loadSettings(servers []Server) Settings {
