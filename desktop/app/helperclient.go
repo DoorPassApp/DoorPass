@@ -42,6 +42,7 @@ type HelperStatus struct {
 	Interface string          `json:"interface,omitempty"`
 	Uplink    string          `json:"uplink,omitempty"`
 	LastError string          `json:"lastError,omitempty"`
+	Busy      string          `json:"busy,omitempty"`
 	QueryLog  bool            `json:"queryLog"`
 	Stats     json.RawMessage `json:"stats,omitempty"`
 }

@@ -17,6 +17,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"net"
 	"runtime"
 	"sync"
 	"time"
@@ -37,6 +38,7 @@ type Status struct {
 	Interface       string          `json:"interface,omitempty"`
 	Uplink          string          `json:"uplink,omitempty"`
 	LastError       string          `json:"lastError,omitempty"`
+	Busy            string          `json:"busy,omitempty"` // connecting | disconnecting
 	QueryLog        bool            `json:"queryLog"`
 	Stats           json.RawMessage `json:"stats,omitempty"`
 	Error           string          `json:"error,omitempty"`
@@ -92,6 +94,17 @@ func (d *DoorPass) refresh() Status {
 
 	st := Status{Settings: settings, Server: d.activeServer()}
 	hs, err := d.client.status()
+	// A helper that answers slowly is busy, not missing: keep what we knew
+	// rather than asking to install it again.
+	var nerr net.Error
+	if err != nil && errors.As(err, &nerr) && nerr.Timeout() {
+		d.mu.Lock()
+		last := d.last
+		d.mu.Unlock()
+		if last.Helper == "ok" {
+			return last
+		}
+	}
 	if err == nil && hs.Version == version && hs.QueryLog != settings.QueryLog {
 		hs, err = d.client.setQueryLog(settings.QueryLog)
 	}
@@ -104,6 +117,7 @@ func (d *DoorPass) refresh() Status {
 		}
 		st.Version, st.Connected, st.URL, st.Mode, st.Since = hs.Version, hs.Connected, hs.URL, hs.Mode, hs.Since
 		st.Interface, st.Uplink, st.LastError, st.QueryLog, st.Stats = hs.Interface, hs.Uplink, hs.LastError, hs.QueryLog, hs.Stats
+		st.Busy = hs.Busy
 		if hs.URL != "" {
 			s := d.serverFor(hs.URL)
 			st.ConnectedServer = &s
@@ -144,7 +158,8 @@ func (d *DoorPass) disconnect() (Status, error) {
 }
 
 func (d *DoorPass) waitForHelper() error {
-	for end := time.Now().Add(15 * time.Second); time.Now().Before(end); time.Sleep(500 * time.Millisecond) {
+	// A new service's first start can be slow on Windows (Defender scans it).
+	for end := time.Now().Add(60 * time.Second); time.Now().Before(end); time.Sleep(500 * time.Millisecond) {
 		if st, err := d.client.status(); err == nil && st.Version == version {
 			return nil
 		}

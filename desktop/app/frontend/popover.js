@@ -20,7 +20,8 @@ function render() {
   const helperOk = st.helper === 'ok';
   document.body.classList.toggle('on', on);
 
-  $('power').disabled = busy || !helperOk;
+  const helperBusy = st.busy === 'connecting' || st.busy === 'disconnecting';
+  $('power').disabled = busy || helperBusy || !helperOk;
   $('power').setAttribute('aria-pressed', String(on));
   $('power-label').textContent = busy ? (on ? 'Turning off…' : 'Turning on…') : (on ? 'Turn off' : 'Turn on');
   $('setup').hidden = helperOk;
@@ -37,6 +38,7 @@ function render() {
     $('state-detail').textContent = st.lastError ? `Last error: ${st.lastError}` : name;
   }
   if (busy) $('state-title').textContent = on ? 'Turning off…' : 'Turning on…';
+  else if (helperBusy) $('state-title').textContent = st.busy === 'connecting' ? 'Turning on…' : 'Turning off…';
   tick();
 }
 

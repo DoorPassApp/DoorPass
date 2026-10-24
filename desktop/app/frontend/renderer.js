@@ -46,7 +46,8 @@ function render() {
 
   document.body.classList.toggle('on', on);
   tickUptime();
-  $('power').disabled = busy || !helperOk;
+  const helperBusy = st.busy === 'connecting' || st.busy === 'disconnecting';
+  $('power').disabled = busy || helperBusy || !helperOk;
   $('power').setAttribute('aria-pressed', String(on));
   $('power-label').textContent = powerBusy ? (on ? 'Turning off…' : 'Turning on…') : (on ? 'Turn off' : 'Turn on');
 
@@ -64,6 +65,7 @@ function render() {
   }
 
   if (powerBusy) $('state-title').textContent = on ? 'Turning off…' : 'Turning on…';
+  else if (helperBusy) $('state-title').textContent = st.busy === 'connecting' ? 'Turning on…' : 'Turning off…';
 
   const banner = $('install-banner');
   banner.hidden = helperOk;

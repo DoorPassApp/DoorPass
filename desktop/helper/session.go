@@ -150,12 +150,32 @@ func (s *session) unpinAll() {
 	}
 }
 
-// manager owns at most one session.
+// manager owns at most one session. op serializes connect and disconnect,
+// which can take many seconds on Windows; mu guards the state status reads
+// and is only held briefly, so status always answers at once.
 type manager struct {
+	op sync.Mutex
+
 	mu      sync.Mutex
 	cur     *session
+	busy    string // "connecting" or "disconnecting" while op is held
 	hub     *hub
 	lastErr string
+}
+
+func (m *manager) setBusy(b string) {
+	m.mu.Lock()
+	m.busy = b
+	m.mu.Unlock()
+}
+
+func (m *manager) setErr(err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.lastErr = ""
+	if err != nil {
+		m.lastErr = err.Error()
+	}
 }
 
 func newManager() *manager {
@@ -172,6 +192,7 @@ type Status struct {
 	Interface string `json:"interface,omitempty"`
 	Uplink    string `json:"uplink,omitempty"`
 	LastError string `json:"lastError,omitempty"`
+	Busy      string `json:"busy,omitempty"`
 	QueryLog  bool   `json:"queryLog"`
 	Stats     Stats  `json:"stats"`
 }
@@ -179,7 +200,7 @@ type Status struct {
 func (m *manager) status() Status {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	st := Status{Version: version, LastError: m.lastErr, QueryLog: m.hub.logQueries.Load(), Stats: m.hub.stats()}
+	st := Status{Version: version, LastError: m.lastErr, Busy: m.busy, QueryLog: m.hub.logQueries.Load(), Stats: m.hub.stats()}
 	if s := m.cur; s != nil {
 		st.Connected = true
 		st.URL = s.url
@@ -204,32 +225,38 @@ func (m *manager) connect(url, ips, mode string) error {
 	if mode != modeDNS {
 		mode = modeFull
 	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.op.Lock()
+	defer m.op.Unlock()
 
-	if s := m.cur; s != nil && s.mode == mode {
-		r, err := doh.NewResolver(url, splitIPs(ips), dialerFor(s.prot), nil, m.hub)
+	m.mu.Lock()
+	cur := m.cur
+	m.mu.Unlock()
+	if cur != nil && cur.mode == mode {
+		r, err := doh.NewResolver(url, splitIPs(ips), dialerFor(cur.prot), nil, m.hub)
 		if err != nil {
-			m.lastErr = err.Error()
+			m.setErr(err)
 			return err
 		}
-		s.tunnel.SetDNS(r)
-		s.url, s.ips = url, ips
+		cur.tunnel.SetDNS(r)
+		m.mu.Lock()
+		cur.url, cur.ips = url, ips
 		m.lastErr = ""
+		m.mu.Unlock()
 		slog.Info("switched DoH server", "url", url)
 		return nil
 	}
-	if m.cur != nil {
-		m.disconnectLocked()
-	}
 
+	m.setBusy("connecting")
+	defer m.setBusy("")
+	m.stopSession()
 	s, err := m.start(url, ips, mode)
+	m.setErr(err)
 	if err != nil {
-		m.lastErr = err.Error()
 		return err
 	}
+	m.mu.Lock()
 	m.cur = s
-	m.lastErr = ""
+	m.mu.Unlock()
 	return nil
 }
 
@@ -298,17 +325,22 @@ func (m *manager) start(url, ips, mode string) (s *session, err error) {
 }
 
 func (m *manager) disconnect() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.disconnectLocked()
+	m.op.Lock()
+	defer m.op.Unlock()
+	m.setBusy("disconnecting")
+	defer m.setBusy("")
+	m.stopSession()
 }
 
-func (m *manager) disconnectLocked() {
+// stopSession tears down the current session; the caller holds op.
+func (m *manager) stopSession() {
+	m.mu.Lock()
 	s := m.cur
+	m.cur = nil
+	m.mu.Unlock()
 	if s == nil {
 		return
 	}
-	m.cur = nil
 	close(s.stop)
 	if err := s.undo(); err != nil {
 		slog.Warn("restore network", "err", err)
