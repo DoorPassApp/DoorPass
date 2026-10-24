@@ -28,4 +28,4 @@ On first launch, DoorPass asks for an administrator password once to install its
 
 ## Credits and license
 
-DoorPass is built on Intra by Jigsaw Operations LLC and keeps its history. Both are released under the [Apache License 2.0](LICENSE). The Windows helper ships the [Wintun](https://www.wintun.net/) driver, under its own license (included in the installer).
+DoorPass is created and maintained by [To Anh Tuan (@kylin266)](https://github.com/kylin266). It is built on Intra by Jigsaw Operations LLC and keeps Intra's history, which is why Intra's developers appear among the contributors. Both are released under the [Apache License 2.0](LICENSE). The Windows helper ships the [Wintun](https://www.wintun.net/) driver, under its own license (included in the installer).
