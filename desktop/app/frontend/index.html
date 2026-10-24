@@ -8,21 +8,27 @@
 </head>
 <body>
   <header class="hero" id="hero">
-    <div class="orb" aria-hidden="true">
-      <svg class="orb-icon" viewBox="0 0 24 24">
-        <g class="door-closed"><path class="orb-line" d="M5.5 21V4.5A1.5 1.5 0 0 1 7 3h10A1.5 1.5 0 0 1 18.5 4.5V21M2 21h20"/><circle class="orb-dot" cx="15.3" cy="12.4" r="1.2"/></g>
-        <g class="door-open"><path class="orb-fill" d="M10.1 21V4.1h9.3V21Z"/><path class="orb-line" d="M9 3.2 3.4 5.4v14.2l5.6 1.4M9 21V4.5A1.5 1.5 0 0 1 10.5 3h8.5A1.5 1.5 0 0 1 20.5 4.5V21M2 21h20"/><circle class="orb-dot" cx="5.9" cy="12.4" r="1.05"/></g>
+    <button id="power" class="door-btn" type="button" aria-pressed="false" disabled>
+      <svg class="door-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <g class="door-closed"><path class="door-line" d="M5.5 21V4.5A1.5 1.5 0 0 1 7 3h10A1.5 1.5 0 0 1 18.5 4.5V21M2 21h20"/><circle class="door-dot" cx="15.3" cy="12.4" r="1.2"/></g>
+        <g class="door-open"><path class="door-fill" d="M10.1 21V4.1h9.3V21Z"/><path class="door-line" d="M9 3.2 3.4 5.4v14.2l5.6 1.4M9 21V4.5A1.5 1.5 0 0 1 10.5 3h8.5A1.5 1.5 0 0 1 20.5 4.5V21M2 21h20"/><circle class="door-dot" cx="5.9" cy="12.4" r="1.05"/></g>
       </svg>
-    </div>
-    <div class="hero-text">
-      <h1 id="state-title">Checking…</h1>
-      <p id="state-detail">Connecting to the DoorPass helper.</p>
-      <p id="state-uptime" class="uptime" hidden></p>
-    </div>
-    <button id="power" class="power" type="button" aria-pressed="false" disabled>
-      <span class="power-knob"></span>
-      <span class="sr-only">Turn protection on or off</span>
+      <span id="power-label">Turn on</span>
     </button>
+    <h1 id="state-title">Checking…</h1>
+    <p id="state-detail">Connecting to the DoorPass helper.</p>
+    <p id="state-uptime" class="uptime" hidden></p>
+
+    <div class="server-pick">
+      <label for="server">DNS-over-HTTPS server</label>
+      <select id="server"></select>
+      <input id="custom-url" type="url" placeholder="https://example.com/dns-query" spellcheck="false" aria-label="Custom server URL" hidden>
+      <p class="server-meta"><span id="server-ips"></span></p>
+      <div class="probe-row">
+        <button id="probe" type="button">Test server</button>
+        <span id="probe-result" class="muted"></span>
+      </div>
+    </div>
   </header>
 
   <section id="install-banner" class="banner" hidden>
@@ -38,20 +44,6 @@
   <main>
     <section class="card settings">
       <h2>Settings</h2>
-      <label class="field">
-        <span>DNS-over-HTTPS server</span>
-        <select id="server"></select>
-      </label>
-      <label class="field" id="custom-field" hidden>
-        <span>Custom server URL</span>
-        <input id="custom-url" type="url" placeholder="https://example.com/dns-query" spellcheck="false">
-      </label>
-      <p class="server-meta"><span id="server-ips"></span></p>
-      <div class="row">
-        <button id="probe" type="button">Test server</button>
-        <span id="probe-result" class="muted"></span>
-      </div>
-
       <fieldset class="field">
         <legend>Protection</legend>
         <label class="radio"><input type="radio" name="mode" value="full">
@@ -89,6 +81,7 @@
     </section>
   </main>
 
-  <script src="renderer.js"></script>
+  <script type="module" src="bridge.js"></script>
+  <script type="module" src="renderer.js"></script>
 </body>
 </html>

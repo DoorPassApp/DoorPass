@@ -1,6 +1,8 @@
-app/node_modules/
-app/dist/
+build/
+dist/
 app/helper/*/doorpass-helper
 app/helper/*/doorpass-helper.exe
 app/helper/*/wintun.dll
 app/helper/*/wintun-LICENSE.txt
+app/rsrc_windows_*.syso
+app/DoorPass-dev

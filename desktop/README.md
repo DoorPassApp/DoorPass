@@ -2,12 +2,15 @@
 
 DoorPass is a desktop app based on Jigsaw's Intra for Android (Apache 2.0). It encrypts every DNS lookup with DNS-over-HTTPS (DoH) and, in Full mode, splits the TLS ClientHello of HTTPS connections so simple server name indication (SNI) filters cannot match it. It reuses Intra's Go networking core (`Android/app/src/go/`) unchanged.
 
+The installers are about 13 MB (one universal macOS DMG for Apple silicon and Intel) and 7 MB (Windows): the app is a Go program that draws its window with the web view the operating system already has (WebKit on macOS, WebView2 on Windows 10/11) instead of bundling Chromium as the Electron builds up to 0.2.0 did.
+
 Upgrading from the earlier "Intra" desktop builds is in place: DoorPass copies the old settings and pairing token, and installing its helper removes the old `intra-helper` daemon or `IntraHelper` service.
 
 ## How it fits together
 
 ```
- Electron app (DoorPass.app / DoorPass.exe, runs as you)
+ DoorPass app (DoorPass.app / DoorPass.exe, runs as you)
+   desktop/app: Go + Wails v3 on the system web view (WebKit / WebView2)
    tray menu · window · settings · live query list
           │  HTTP on 127.0.0.1:47121, bearer token
           ▼
@@ -24,7 +27,7 @@ On macOS the helper saves each network service's DNS servers to `/Library/Applic
 
 The app installs the helper on first launch, after one administrator prompt. The helper copies itself to `/Library/PrivilegedHelperTools/dev.bfast.doorpass-helper` or `C:\Program Files\DoorPass Helper\`. The token that pairs app and helper sits in the app's user data folder and in the helper's root-only config. Requests carrying an `Origin` header or a foreign `Host` are refused, so web pages cannot drive the helper.
 
-Quitting the app (tray menu, or Cmd+Q on macOS) turns protection off. Closing or minimizing the window keeps DoorPass running, minimized in the Dock or taskbar. When opened at login it starts minimized there.
+Clicking the menu bar / tray icon opens a small popover with the round door button (on/off), the status and a settings button that opens the main window; right-clicking the icon opens a menu with the server list, Open DoorPass and Quit. Closing or minimizing the main window hides DoorPass to the menu bar / tray, out of the Dock and taskbar; when opened at login it starts there. Quitting (tray menu, or Cmd+Q while the window is open on macOS) turns protection off.
 
 The query log, the list of domain names being looked up, is off by default, and the helper records no domain names while it is off. Turn it on in Settings only while checking something; turning it off again clears it. The counters (queries, latency, failures, TLS splits) always run. The helper's own log file only records start, connect and disconnect lines.
 
@@ -35,18 +38,18 @@ Full mode is the Android behaviour: all IPv4 traffic passes through Intra's user
 ## Building
 
 ```bash
-desktop/build.sh          # macOS arm64 + x64 DMGs and the Windows x64 installer
+desktop/build.sh          # one universal macOS DMG and the Windows x64 installer
 desktop/build.sh mac      # or just one platform
 desktop/build.sh win
 ```
 
-This needs Go (the version in `go.mod`), Node with npm, and `x86_64-w64-mingw32-gcc` for the Windows helper (`brew install mingw-w64`). When the Lexar drive is mounted, the installers and `SHA256SUMS.txt` go to `/Volumes/Lexar/DoorPass/releases/<version>/` and the Electron download cache lives on the drive too. Builds themselves stay on the internal disk, because exFAT cannot hold the symlinks inside `.app` bundles.
+The version comes from `desktop/VERSION`. This needs Go (the version in `go.mod`), the Xcode Command Line Tools, `x86_64-w64-mingw32-gcc` for the Windows helper's C code (`brew install mingw-w64`), and `makensis` for the Windows installer; without it, the script runs Debian's `nsis` in Docker (OrbStack). The Windows app itself needs no C compiler. The macOS app is one universal binary for Apple silicon and Intel, signed ad hoc (not with a Developer ID). Installers and `SHA256SUMS.txt` go to `/Volumes/Lexar/DoorPass/releases/<version>/` when the Lexar drive is mounted, else to `desktop/dist/<version>/`; intermediate files stay in `desktop/build/`.
 
-For development, run `cd desktop/app && npm start` after building the helper for your machine (`desktop/build.sh mac` builds both Mac architectures).
+For development on a Mac: build the helper once (`desktop/build.sh mac`), then `cd desktop/app && go run .`. The app finds the helper in `app/helper/mac-<arch>/`.
 
-Go tests: `go test -race ./desktop/...` from the repo root.
+Go tests: `go test -race ./desktop/helper` from the repo root; the app is its own Go module in `desktop/app`, so Intra's Android build and CI don't see it.
 
-Icons are drawn as SVG in `desktop/design/render-icons.js` (a door: closed when off, open with the doorway lit warm gold when on). After editing it, run `./node_modules/.bin/electron ../design/render-icons.js` from `desktop/app` to regenerate every PNG in `app/assets`.
+Icons are drawn as SVG in `desktop/design/render-icons.js` (a door: closed when off, open with the doorway lit warm gold when on). After editing it, run `npx -y electron@44.7.0 render-icons.js` from `desktop/design` to regenerate every PNG in `app/assets`; Electron is used only as an SVG renderer there.
 
 ## Installing on a team machine
 

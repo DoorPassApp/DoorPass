@@ -4,6 +4,7 @@ const MAX_ROWS = 200;
 let servers = [];
 let current = null;
 let busy = false;
+let powerBusy = false; // The on/off button's own action is running.
 const queries = [];
 
 function fmtLatency(ms) {
@@ -47,6 +48,7 @@ function render() {
   tickUptime();
   $('power').disabled = busy || !helperOk;
   $('power').setAttribute('aria-pressed', String(on));
+  $('power-label').textContent = powerBusy ? (on ? 'Turning off…' : 'Turning on…') : (on ? 'Turn off' : 'Turn on');
 
   if (!helperOk) {
     $('state-title').textContent = 'Setup needed';
@@ -60,6 +62,8 @@ function render() {
     $('state-title').textContent = 'Off';
     $('state-detail').textContent = st.lastError ? `Last error: ${st.lastError}` : 'Your DNS lookups are not encrypted by DoorPass.';
   }
+
+  if (powerBusy) $('state-title').textContent = on ? 'Turning off…' : 'Turning on…';
 
   const banner = $('install-banner');
   banner.hidden = helperOk;
@@ -93,7 +97,7 @@ function render() {
   if (set && document.activeElement !== $('custom-url')) {
     if (document.activeElement !== $('server')) $('server').value = set.url;
     $('custom-url').value = set.customUrl || '';
-    $('custom-field').hidden = set.url !== 'custom';
+    $('custom-url').hidden = set.url !== 'custom';
     document.querySelectorAll('input[name=mode]').forEach((r) => { r.checked = r.value === set.mode; });
     $('auto-connect').checked = !!set.autoConnect;
     $('query-log').checked = !!set.queryLog;
@@ -202,7 +206,12 @@ async function init() {
   window.doorpass.onQueriesReset(resetQueries);
   window.doorpass.onError(showError);
 
-  $('power').addEventListener('click', () => run(() => (current.connected ? window.doorpass.disconnect() : window.doorpass.connect())));
+  $('power').addEventListener('click', async () => {
+    powerBusy = true;
+    await run(() => (current.connected ? window.doorpass.disconnect() : window.doorpass.connect()));
+    powerBusy = false;
+    render();
+  });
   $('install').addEventListener('click', () => run(() => window.doorpass.installHelper()));
   $('uninstall').addEventListener('click', () => run(() => window.doorpass.uninstallHelper()));
 
@@ -210,7 +219,7 @@ async function init() {
   // to the saved settings, so every handler reads the new value first.
   sel.addEventListener('change', () => {
     const url = sel.value;
-    $('custom-field').hidden = url !== 'custom';
+    $('custom-url').hidden = url !== 'custom';
     $('probe-result').textContent = '';
     if (url === 'custom' && !$('custom-url').value) {
       $('custom-url').focus();

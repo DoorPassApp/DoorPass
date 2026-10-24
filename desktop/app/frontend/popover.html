@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:">
+  <title>DoorPass</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="pop">
+  <header class="pop-head">
+    <span class="brand">DoorPass</span>
+    <button id="open" class="icon-btn" type="button" title="Settings" aria-label="Settings" aria-haspopup="menu">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.5h-4l-.4 2.5a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.4 7.4 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7.4 7.4 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6ZM13 15a3 3 0 1 1 0-6 3 3 0 0 1 0 6Z" transform="translate(-1 0)"/></svg>
+    </button>
+  </header>
+  <main class="pop-main">
+    <button id="power" class="door-btn" type="button" aria-pressed="false" disabled>
+      <svg class="door-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <g class="door-closed"><path class="door-line" d="M5.5 21V4.5A1.5 1.5 0 0 1 7 3h10A1.5 1.5 0 0 1 18.5 4.5V21M2 21h20"/><circle class="door-dot" cx="15.3" cy="12.4" r="1.2"/></g>
+        <g class="door-open"><path class="door-fill" d="M10.1 21V4.1h9.3V21Z"/><path class="door-line" d="M9 3.2 3.4 5.4v14.2l5.6 1.4M9 21V4.5A1.5 1.5 0 0 1 10.5 3h8.5A1.5 1.5 0 0 1 20.5 4.5V21M2 21h20"/><circle class="door-dot" cx="5.9" cy="12.4" r="1.05"/></g>
+      </svg>
+      <span id="power-label">Turn on</span>
+    </button>
+    <h1 id="state-title">Checking…</h1>
+    <p id="state-detail"></p>
+    <p id="state-uptime" class="uptime" hidden></p>
+    <button id="setup" class="primary" type="button" hidden>Set up DoorPass</button>
+    <p id="error" class="pop-error" role="alert" hidden></p>
+  </main>
+  <script type="module" src="bridge.js"></script>
+  <script type="module" src="popover.js"></script>
+</body>
+</html>

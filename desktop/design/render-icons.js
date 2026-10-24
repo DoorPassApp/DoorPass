@@ -1,5 +1,5 @@
 // Renders DoorPass's icons from the SVGs below into desktop/app/assets.
-// Run from desktop/app: ./node_modules/.bin/electron ../design/render-icons.js
+// Run from desktop/design: npx -y electron@44.7.0 render-icons.js
 //
 // The glyph is a door: closed (outline with a knob) when off, swung open with
 // the doorway filled with light when on.
