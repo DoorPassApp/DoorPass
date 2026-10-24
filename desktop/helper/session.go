@@ -62,20 +62,48 @@ type protector struct {
 	resolvers atomic.Value // string, comma separated
 	exclude   string       // Name of our own TUN interface.
 
+	lastRefresh  atomic.Int64 // Unix nanoseconds
+	failures     atomic.Int64 // Bind failures since the last warning.
+	lastFailWarn atomic.Int64 // Unix nanoseconds
+
 	// onUplink, if set, is called when the interface or gateway changes.
 	onUplink func(name, gateway string)
 }
 
+// Protect binds a socket to the uplink. If that fails (the uplink went away
+// or changed), it re-detects the uplink once and retries; a socket that still
+// can't be bound is refused rather than allowed to loop into the tunnel.
 func (p *protector) Protect(fd int32) bool {
 	idx := int(p.ifindex.Load())
 	if idx == 0 {
 		return true
 	}
-	if err := bindToInterface(uintptr(fd), idx); err != nil {
-		slog.Warn("protect: bind failed", "ifindex", idx, "err", err)
+	err := bindToInterface(uintptr(fd), idx)
+	if err != nil && time.Since(time.Unix(0, p.lastRefresh.Load())) > 2*time.Second {
+		p.refresh()
+		if newIdx := int(p.ifindex.Load()); newIdx != idx && newIdx != 0 {
+			idx = newIdx
+			err = bindToInterface(uintptr(fd), idx)
+		}
+	}
+	if err != nil {
+		p.warnBindFailure(idx, err)
 		return false
 	}
 	return true
+}
+
+// warnBindFailure logs bind failures at most every 30 seconds, with a count.
+func (p *protector) warnBindFailure(idx int, err error) {
+	n := p.failures.Add(1)
+	now := time.Now().UnixNano()
+	last := p.lastFailWarn.Load()
+	if time.Duration(now-last) < 30*time.Second || !p.lastFailWarn.CompareAndSwap(last, now) {
+		return
+	}
+	p.failures.Add(-n)
+	uplink, _ := p.ifname.Load().(string)
+	slog.Warn("protect: bind failed", "uplink", uplink, "ifindex", idx, "err", err, "count", n)
 }
 
 func (p *protector) GetResolvers() string {
@@ -86,6 +114,7 @@ func (p *protector) GetResolvers() string {
 // refresh re-detects the physical default interface and its DNS servers.
 // It keeps the previous values if detection fails, e.g. while Wi-Fi switches.
 func (p *protector) refresh() {
+	p.lastRefresh.Store(time.Now().UnixNano())
 	name, idx, gw, err := defaultInterface(p.exclude)
 	if err != nil {
 		slog.Debug("protect: no default interface", "err", err)

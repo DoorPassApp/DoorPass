@@ -39,14 +39,21 @@ type Protector interface {
 	GetResolvers() string
 }
 
+// makeControl protects each socket before it connects. An unprotected socket
+// would route back into the tunnel, so failing to protect fails the dial.
 func makeControl(p Protector) func(string, string, syscall.RawConn) error {
 	return func(network, address string, c syscall.RawConn) error {
-		return c.Control(func(fd uintptr) {
-			if !p.Protect(int32(fd)) {
-				// TODO: Record and report these errors.
-				logging.Errorf("Failed to protect a %s socket", network)
-			}
-		})
+		var protected bool
+		if err := c.Control(func(fd uintptr) {
+			protected = p.Protect(int32(fd))
+		}); err != nil {
+			return err
+		}
+		if !protected {
+			logging.Errorf("Failed to protect a %s socket", network)
+			return fmt.Errorf("failed to protect a %s socket", network)
+		}
+		return nil
 	}
 }
 

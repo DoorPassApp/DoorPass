@@ -300,11 +300,51 @@ func copyFile(src, dst string) error {
 	return os.WriteFile(dst, b, 0o755)
 }
 
-func stopService(s *mgr.Service) {
+// replaceFile copies src over dst. If dst is still locked by a running
+// helper, it is renamed out of the way first (Windows allows renaming a
+// running program) and removed on a later install.
+func replaceFile(src, dst string) error {
+	if err := copyFile(src, dst); err == nil {
+		return nil
+	}
+	old := dst + ".old"
+	os.Remove(old)
+	if err := os.Rename(dst, old); err != nil {
+		return err
+	}
+	return copyFile(src, dst)
+}
+
+// removeService takes the named service down for good: it is marked for
+// deletion first, so the service manager won't restart it, then asked to
+// stop. A helper in the middle of a slow connect gets 45 seconds before its
+// process is ended. Returns once the service no longer exists.
+func removeService(m *mgr.Mgr, name string) {
+	s, err := m.OpenService(name)
+	if err != nil {
+		return
+	}
+	s.Delete()
 	st, err := s.Control(svc.Stop)
-	for i := 0; err == nil && st.State != svc.Stopped && i < 50; i++ {
-		time.Sleep(200 * time.Millisecond)
+	for end := time.Now().Add(45 * time.Second); err == nil && st.State != svc.Stopped && time.Now().Before(end); {
+		time.Sleep(250 * time.Millisecond)
 		st, err = s.Query()
+	}
+	if err == nil && st.State != svc.Stopped && st.ProcessId != 0 {
+		slog.Warn("helper did not stop in time; ending it", "service", name, "pid", st.ProcessId)
+		if h, err := windows.OpenProcess(windows.PROCESS_TERMINATE|windows.SYNCHRONIZE, false, st.ProcessId); err == nil {
+			windows.TerminateProcess(h, 1)
+			windows.WaitForSingleObject(h, 10_000)
+			windows.CloseHandle(h)
+		}
+	}
+	s.Close()
+	for end := time.Now().Add(10 * time.Second); time.Now().Before(end); time.Sleep(250 * time.Millisecond) {
+		if s, err := m.OpenService(name); err != nil {
+			return
+		} else {
+			s.Close()
+		}
 	}
 }
 
@@ -323,12 +363,7 @@ func install(cfg *config) error {
 	defer m.Disconnect()
 	// The helper was called IntraHelper before the rename to DoorPass.
 	for _, name := range []string{"IntraHelper", serviceName} {
-		if s, err := m.OpenService(name); err == nil {
-			stopService(s)
-			s.Delete()
-			s.Close()
-			time.Sleep(time.Second) // Let the SCM release the old service.
-		}
+		removeService(m, name)
 	}
 	os.RemoveAll(filepath.Join(os.Getenv("ProgramFiles"), "Intra Helper"))
 	os.RemoveAll(filepath.Join(os.Getenv("ProgramData"), "IntraHelper"))
@@ -337,10 +372,12 @@ func install(cfg *config) error {
 		return err
 	}
 	exe := filepath.Join(installDir, "doorpass-helper.exe")
-	if err := copyFile(self, exe); err != nil {
+	os.Remove(exe + ".old")
+	os.Remove(filepath.Join(installDir, wintunDLL) + ".old")
+	if err := replaceFile(self, exe); err != nil {
 		return fmt.Errorf("copy helper: %w", err)
 	}
-	if err := copyFile(filepath.Join(filepath.Dir(self), wintunDLL), filepath.Join(installDir, wintunDLL)); err != nil {
+	if err := replaceFile(filepath.Join(filepath.Dir(self), wintunDLL), filepath.Join(installDir, wintunDLL)); err != nil {
 		return fmt.Errorf("copy %s: %w", wintunDLL, err)
 	}
 	if err := writeConfig(configPath(), cfg); err != nil {
@@ -375,11 +412,8 @@ func uninstall() error {
 		return err
 	}
 	defer m.Disconnect()
-	if s, err := m.OpenService(serviceName); err == nil {
-		stopService(s)
-		s.Delete()
-		s.Close()
-	}
-	time.Sleep(time.Second)
-	return errors.Join(os.RemoveAll(installDir), os.RemoveAll(dataDir))
+	removeService(m, serviceName)
+	// helper.log stays: this uninstall is writing to it, and it explains
+	// what happened. The token and config go.
+	return errors.Join(os.RemoveAll(installDir), os.Remove(configPath()))
 }
