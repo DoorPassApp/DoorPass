@@ -4,7 +4,7 @@
 
 DoorPass encrypts your computer's DNS lookups and gets around simple website blocking, on macOS and Windows. It is a desktop port of [Intra](https://github.com/Jigsaw-Code/Intra), Jigsaw's Android app, and runs the same networking code.
 
-**[Download the latest release](https://github.com/kylin266/DoorPass/releases/latest)**
+**[Download DoorPass](https://github.com/kylin266/DoorPass/releases)**
 
 - macOS 13 or later, Apple silicon and Intel: `DoorPass-<version>-mac.dmg` (about 13 MB)
 - Windows 10/11 on Intel or AMD: `DoorPass-<version>-win-x64-setup.exe` (about 7 MB)
