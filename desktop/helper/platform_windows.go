@@ -114,33 +114,50 @@ func adapters() ([]*windows.IpAdapterAddresses, error) {
 	}
 }
 
-// defaultInterface picks the connected adapter with an IPv4 gateway and the
-// lowest metric, ignoring our own TUN adapter.
+// defaultInterface picks the adapter Windows itself would send internet
+// traffic through: among the IPv4 default routes (0.0.0.0/0) on connected,
+// up adapters, the lowest route metric plus interface metric. Our own TUN
+// adapter is skipped, and so are virtual adapters whose gateway carries no
+// default route (e.g. LAN VPNs such as Radmin VPN).
 func defaultInterface(exclude string) (string, int, string, error) {
 	as, err := adapters()
 	if err != nil {
 		return "", 0, "", err
 	}
-	var best *windows.IpAdapterAddresses
+	names := map[uint32]string{}
 	for _, a := range as {
 		name := windows.UTF16PtrToString(a.FriendlyName)
-		if a.OperStatus != windows.IfOperStatusUp || a.IfIndex == 0 || name == exclude || name == tunName {
+		if a.OperStatus == windows.IfOperStatusUp && a.IfIndex != 0 && name != exclude && name != tunName {
+			names[a.IfIndex] = name
+		}
+	}
+
+	var table *windows.MibIpForwardTable2
+	if err := windows.GetIpForwardTable2(windows.AF_INET, &table); err != nil {
+		return "", 0, "", err
+	}
+	defer windows.FreeMibTable(unsafe.Pointer(table))
+
+	bestIdx, bestMetric := uint32(0), ^uint32(0)
+	for _, r := range table.Rows() {
+		if r.DestinationPrefix.PrefixLength != 0 {
+			continue // Not a default route.
+		}
+		if _, ok := names[r.InterfaceIndex]; !ok {
 			continue
 		}
-		hasV4Gateway := false
-		for g := a.FirstGatewayAddress; g != nil; g = g.Next {
-			if ip := g.Address.IP(); ip != nil && ip.To4() != nil && !ip.IsUnspecified() {
-				hasV4Gateway = true
-			}
+		row := windows.MibIpInterfaceRow{Family: windows.AF_INET, InterfaceIndex: r.InterfaceIndex}
+		if windows.GetIpInterfaceEntry(&row) != nil || row.Connected == 0 {
+			continue
 		}
-		if hasV4Gateway && (best == nil || a.Ipv4Metric < best.Ipv4Metric) {
-			best = a
+		if m := r.Metric + row.Metric; m < bestMetric {
+			bestIdx, bestMetric = r.InterfaceIndex, m
 		}
 	}
-	if best == nil {
-		return "", 0, "", errors.New("no adapter with a default gateway")
+	if bestIdx == 0 {
+		return "", 0, "", errors.New("no default route")
 	}
-	return windows.UTF16PtrToString(best.FriendlyName), int(best.IfIndex), "", nil
+	return names[bestIdx], int(bestIdx), "", nil
 }
 
 // pinUplink is a no-op: with IP_UNICAST_IF, Windows routes by the bound

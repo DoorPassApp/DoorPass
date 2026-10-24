@@ -234,6 +234,7 @@ func (m *manager) connect(url, ips, mode string) error {
 }
 
 func (m *manager) start(url, ips, mode string) (s *session, err error) {
+	begin := time.Now()
 	dev, ifname, err := openTun()
 	if err != nil {
 		return nil, fmt.Errorf("create TUN interface: %w", err)
@@ -258,10 +259,12 @@ func (m *manager) start(url, ips, mode string) (s *session, err error) {
 	}
 	s.prot.refresh()
 
+	tunReady := time.Since(begin)
 	r, err := doh.NewResolver(url, splitIPs(ips), dialerFor(s.prot), nil, m.hub)
 	if err != nil {
 		return nil, fmt.Errorf("DoH server: %w", err)
 	}
+	resolverReady := time.Since(begin)
 	m.hub.reset()
 	s.tunnel, err = intra.NewTunnel(fakeDNSIP+":53", r, s.dev, s.prot, m.hub)
 	if err != nil {
@@ -270,6 +273,7 @@ func (m *manager) start(url, ips, mode string) (s *session, err error) {
 	go relay(s.tunnel, s.dev)
 	go relay(s.dev, s.tunnel)
 
+	tunnelReady := time.Since(begin)
 	if s.undo, err = configureNetwork(ifname, mode); err != nil {
 		return nil, fmt.Errorf("configure network: %w", err)
 	}
@@ -286,7 +290,10 @@ func (m *manager) start(url, ips, mode string) (s *session, err error) {
 			}
 		}
 	}()
-	slog.Info("connected", "url", url, "mode", mode, "tun", ifname)
+	slog.Info("connected", "url", url, "mode", mode, "tun", ifname,
+		"uplink", s.prot.ifname.Load(), "took", time.Since(begin).Round(time.Millisecond),
+		"tun_ready", tunReady.Round(time.Millisecond), "resolver_ready", resolverReady.Round(time.Millisecond),
+		"tunnel_ready", tunnelReady.Round(time.Millisecond))
 	return s, nil
 }
 

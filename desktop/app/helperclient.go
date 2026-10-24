@@ -118,12 +118,14 @@ func (c *helperClient) status() (HelperStatus, error) {
 
 func (c *helperClient) connect(url, ips, mode string) (HelperStatus, error) {
 	var st HelperStatus
-	return st, c.do("POST", "/connect", map[string]string{"url": url, "ips": ips, "mode": mode}, 15*time.Second, &st)
+	// Turning on can take a while the first time on Windows, while the Wintun
+	// adapter is created.
+	return st, c.do("POST", "/connect", map[string]string{"url": url, "ips": ips, "mode": mode}, 90*time.Second, &st)
 }
 
 func (c *helperClient) disconnect() (HelperStatus, error) {
 	var st HelperStatus
-	return st, c.do("POST", "/disconnect", nil, 15*time.Second, &st)
+	return st, c.do("POST", "/disconnect", nil, 30*time.Second, &st)
 }
 
 func (c *helperClient) setQueryLog(on bool) (HelperStatus, error) {
