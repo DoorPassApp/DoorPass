@@ -75,8 +75,15 @@ func logOutput(cmd string) io.Writer {
 	return io.MultiWriter(os.Stderr, f)
 }
 
+// adapterGUID keeps one DoorPass adapter (and its Windows network profile)
+// across connects instead of new ones.
+var adapterGUID = windows.GUID{Data1: 0x8d2330b4, Data2: 0xeaea, Data3: 0x4204, Data4: [8]byte{0x94, 0xa1, 0xbf, 0x1d, 0x0c, 0x1e, 0x25, 0x49}}
+
 func openTun() (tun.Device, string, error) {
-	dev, err := tun.CreateTUN(tunName, tunMTU)
+	// Shown in Network Connections as "DoorPass Tunnel" instead of WireGuard's
+	// default label.
+	tun.WintunTunnelType = "DoorPass"
+	dev, err := tun.CreateTUNWithRequestedGUID(tunName, &adapterGUID, tunMTU)
 	if err != nil {
 		return nil, "", err
 	}
