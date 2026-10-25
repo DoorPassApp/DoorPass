@@ -55,7 +55,7 @@ Icons are drawn as SVG in `desktop/design/render-icons.js` (a door: closed when 
 
 ## Installing on a team machine
 
-On macOS, open the DMG and drag DoorPass to Applications. The build is unsigned, so the first launch needs right-click, then Open (or System Settings, then Privacy & Security, then Open Anyway). Then click **Install helper** and enter an administrator password.
+On macOS, open the DMG and drag DoorPass to Applications. The build is unsigned, so macOS blocks the first launch: open it once, then go to System Settings, Privacy & Security, and click Open Anyway (or run `xattr -dr com.apple.quarantine /Applications/DoorPass.app` in Terminal). Then click **Install helper** and enter an administrator password.
 
 On Windows, run `DoorPass-<version>-win-x64-setup.exe`. SmartScreen warns about an unknown publisher; choose More info, then Run anyway. In the app, click **Install helper** and accept the User Account Control prompt.
 

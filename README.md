@@ -19,7 +19,7 @@ It does not hide which servers you connect to or change your IP address; it is n
 
 Click the door in the menu bar (macOS) or the system tray (Windows) to open DoorPass, then click the round door button to turn protection on or off. The gear opens a menu with the mode, the DNS server, Preferences, About and Quit. The main window has the full server list, a custom server option, the session counters and an optional query log, which is off by default.
 
-On first launch, DoorPass asks for an administrator password once to install its background helper, the part that sets up the tunnel. The builds are unsigned for now: on macOS, right-click the app and choose Open the first time; on Windows, choose More info, then Run anyway, when SmartScreen warns.
+On first launch, DoorPass asks for an administrator password once to install its background helper, the part that sets up the tunnel. The builds are unsigned for now: on macOS, open it once, then go to System Settings > Privacy & Security and click Open Anyway (or run `xattr -dr com.apple.quarantine /Applications/DoorPass.app` in Terminal); on Windows, choose More info, then Run anyway, when SmartScreen warns.
 
 ## Repository layout
 
