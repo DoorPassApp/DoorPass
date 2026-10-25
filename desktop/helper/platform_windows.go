@@ -21,6 +21,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -34,6 +35,7 @@ import (
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
 	"golang.zx2c4.com/wireguard/tun"
+	"golang.zx2c4.com/wireguard/windows/tunnel/winipcfg"
 )
 
 const (
@@ -87,6 +89,7 @@ func openTun() (tun.Device, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
+	tunLUID = winipcfg.LUID(dev.(*tun.NativeTun).LUID())
 	return dev, tunName, nil
 }
 
@@ -200,40 +203,62 @@ func run1(name string, args ...string) error {
 	return nil
 }
 
-func netsh(args ...string) error {
-	return run1("netsh", append([]string{"interface", "ipv4"}, args...)...)
-}
+// keepTun: creating a Wintun adapter is slow (a Plug and Play device install),
+// so one adapter serves every session until the helper stops.
+const keepTun = true
 
-// configureNetwork sets the address, DNS and routes on the Wintun adapter.
-// All of it disappears with the adapter, so an unclean exit leaves nothing
-// behind.
+// tunLUID identifies the DoorPass adapter for the IP Helper calls below.
+var tunLUID winipcfg.LUID
+
+var procDnsFlushResolverCache = windows.NewLazySystemDLL("dnsapi.dll").NewProc("DnsFlushResolverCache")
+
+func flushDNSCache() { procDnsFlushResolverCache.Call() }
+
+// configureNetwork sets the adapter's address, metric, DNS and routes with the
+// IP Helper API (no netsh processes). The returned undo removes the routes and
+// the adapter's DNS, so a kept adapter points nothing at DoorPass while it is
+// off; everything disappears with the adapter if the helper dies.
 func configureNetwork(ifname, mode string) (func() error, error) {
-	q := "name=" + ifname
-	steps := [][]string{
-		{"set", "address", q, "source=static", "address=" + tunGatewayIP, "mask=255.255.255.0"},
-		{"set", "interface", "interface=" + ifname, "metric=1"},
-		{"set", "dnsservers", q, "source=static", "address=" + fakeDNSIP, "register=none", "validate=no"},
+	luid := tunLUID
+	if err := luid.SetIPAddressesForFamily(windows.AF_INET, []netip.Prefix{netip.MustParsePrefix(tunGatewayIP + "/24")}); err != nil {
+		return nil, fmt.Errorf("set address: %w", err)
 	}
-	routes := []string{}
+	row, err := luid.IPInterface(windows.AF_INET)
+	if err != nil {
+		return nil, fmt.Errorf("read interface: %w", err)
+	}
+	row.UseAutomaticMetric = false
+	row.Metric = 1 // Ahead of the physical adapters, for DNS.
+	if err := row.Set(); err != nil {
+		return nil, fmt.Errorf("set metric: %w", err)
+	}
+	if err := luid.SetDNS(windows.AF_INET, []netip.Addr{netip.MustParseAddr(fakeDNSIP)}, nil); err != nil {
+		return nil, fmt.Errorf("set DNS: %w", err)
+	}
+	var routes []netip.Prefix
 	if mode == modeFull {
-		routes = append(routes, "0.0.0.0/1", "128.0.0.0/1")
+		// Two /1 routes beat the default route without replacing it.
+		routes = []netip.Prefix{netip.MustParsePrefix("0.0.0.0/1"), netip.MustParsePrefix("128.0.0.0/1")}
+	}
+	undo := func() error {
+		var errs []error
+		for _, r := range routes {
+			if err := luid.DeleteRoute(r, netip.IPv4Unspecified()); err != nil && !errors.Is(err, windows.ERROR_NOT_FOUND) {
+				errs = append(errs, err)
+			}
+		}
+		errs = append(errs, luid.FlushDNS(windows.AF_INET))
+		flushDNSCache()
+		return errors.Join(errs...)
 	}
 	for _, r := range routes {
-		steps = append(steps, []string{"add", "route", "prefix=" + r, "interface=" + ifname, "nexthop=0.0.0.0", "metric=0", "store=active"})
-	}
-	for _, s := range steps {
-		if err := netsh(s...); err != nil {
-			return nil, err
+		if err := luid.AddRoute(r, netip.IPv4Unspecified(), 0); err != nil && !errors.Is(err, windows.ERROR_OBJECT_ALREADY_EXISTS) {
+			undo()
+			return nil, fmt.Errorf("add route %s: %w", r, err)
 		}
 	}
-	run1("ipconfig", "/flushdns")
-	return func() error {
-		for _, r := range routes {
-			netsh("delete", "route", "prefix="+r, "interface="+ifname, "store=active")
-		}
-		run1("ipconfig", "/flushdns")
-		return nil
-	}, nil
+	flushDNSCache()
+	return undo, nil
 }
 
 func recoverNetwork() {}
@@ -252,7 +277,7 @@ func (s *service) Execute(_ []string, req <-chan svc.ChangeRequest, status chan<
 		select {
 		case err := <-errc:
 			slog.Error("API server stopped", "err", err)
-			s.m.disconnect()
+			s.m.shutdown()
 			return true, 1
 		case c := <-req:
 			switch c.Cmd {
@@ -260,7 +285,7 @@ func (s *service) Execute(_ []string, req <-chan svc.ChangeRequest, status chan<
 				status <- c.CurrentStatus
 			case svc.Stop, svc.Shutdown:
 				status <- svc.Status{State: svc.StopPending}
-				s.m.disconnect()
+				s.m.shutdown()
 				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 				s.srv.Shutdown(ctx)
 				cancel()
@@ -280,11 +305,11 @@ func serve(srv *http.Server, m *manager) error {
 	signal.Notify(sig, os.Interrupt)
 	select {
 	case err := <-errc:
-		m.disconnect()
+		m.shutdown()
 		return err
 	case <-sig:
 	}
-	m.disconnect()
+	m.shutdown()
 	return srv.Close()
 }
 

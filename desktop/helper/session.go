@@ -19,16 +19,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"log/slog"
 	"net"
-	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"golang.getoutline.org/sdk/network"
 
 	"localhost/Intra/Android/app/src/go/doh"
 	"localhost/Intra/Android/app/src/go/intra"
@@ -144,7 +140,6 @@ type session struct {
 	mode  string
 	since time.Time
 
-	dev    *tunIO
 	ifname string
 	tunnel *intra.Tunnel
 	prot   *protector
@@ -184,6 +179,8 @@ func (s *session) unpinAll() {
 // and is only held briefly, so status always answers at once.
 type manager struct {
 	op sync.Mutex
+
+	pump *pump // Guarded by op.
 
 	mu      sync.Mutex
 	cur     *session
@@ -291,21 +288,24 @@ func (m *manager) connect(url, ips, mode string) error {
 
 func (m *manager) start(url, ips, mode string) (s *session, err error) {
 	begin := time.Now()
-	dev, ifname, err := openTun()
-	if err != nil {
-		return nil, fmt.Errorf("create TUN interface: %w", err)
+	if m.pump == nil {
+		dev, name, err := openTun()
+		if err != nil {
+			return nil, fmt.Errorf("create TUN interface: %w", err)
+		}
+		m.pump = newPump(dev, name)
 	}
-	s = &session{url: url, ips: ips, mode: mode, since: time.Now(), dev: newTunIO(dev), ifname: ifname, stop: make(chan struct{})}
+	ifname := m.pump.name
+	s = &session{url: url, ips: ips, mode: mode, since: time.Now(), ifname: ifname, stop: make(chan struct{})}
 	defer func() {
 		if err == nil {
 			return
 		}
 		s.unpinAll()
 		if s.tunnel != nil {
-			s.tunnel.Disconnect() // Also closes the TUN device.
-		} else {
-			s.dev.Close()
+			s.tunnel.Disconnect()
 		}
+		m.releaseTun()
 	}()
 
 	// Detect the uplink before our routes exist.
@@ -322,12 +322,15 @@ func (m *manager) start(url, ips, mode string) (s *session, err error) {
 	}
 	resolverReady := time.Since(begin)
 	m.hub.reset()
-	s.tunnel, err = intra.NewTunnel(fakeDNSIP+":53", r, s.dev, s.prot, m.hub)
+	// Packets from the device reach this tunnel through the pump; closing the
+	// tunnel detaches it, leaving the device for the next session.
+	attach, detach := m.pump.attach()
+	s.tunnel, err = intra.NewTunnel(fakeDNSIP+":53", r, detach, s.prot, m.hub)
 	if err != nil {
 		return nil, fmt.Errorf("start tunnel: %w", err)
 	}
-	go relay(s.tunnel, s.dev)
-	go relay(s.dev, s.tunnel)
+	attach(s.tunnel)
+	go relay(m.pump.dev, s.tunnel)
 
 	tunnelReady := time.Since(begin)
 	if s.undo, err = configureNetwork(ifname, mode); err != nil {
@@ -376,7 +379,31 @@ func (m *manager) stopSession() {
 	}
 	s.unpinAll()
 	s.tunnel.Disconnect()
+	m.releaseTun()
 	slog.Info("disconnected")
+}
+
+// releaseTun closes the TUN device between sessions where creating one is
+// cheap (keepTun false); otherwise it stays for the next session. The caller
+// holds op.
+func (m *manager) releaseTun() {
+	if keepTun || m.pump == nil {
+		return
+	}
+	m.pump.close()
+	m.pump = nil
+}
+
+// shutdown turns protection off and closes the TUN device, when the helper
+// itself stops.
+func (m *manager) shutdown() {
+	m.disconnect()
+	m.op.Lock()
+	defer m.op.Unlock()
+	if m.pump != nil {
+		m.pump.close()
+		m.pump = nil
+	}
 }
 
 // probe checks that a DoH server answers, like backend.Probe, without
@@ -429,7 +456,7 @@ func relay(dst, src io.ReadWriteCloser) {
 	buf := make([]byte, tunMTU)
 	for {
 		_, err := io.CopyBuffer(dst, src, buf)
-		if err == nil || errors.Is(err, os.ErrClosed) || errors.Is(err, fs.ErrClosed) || errors.Is(err, network.ErrClosed) {
+		if err == nil || isClosed(err) {
 			return
 		}
 		time.Sleep(10 * time.Millisecond) // Don't spin on a persistent error.

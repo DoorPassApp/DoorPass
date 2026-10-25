@@ -39,3 +39,5 @@ func configureNetwork(string, string) (func() error, error) { return nil, errUns
 func recoverNetwork()                                       {}
 func install(*config) error                                 { return errUnsupported }
 func uninstall() error                                      { return errUnsupported }
+
+const keepTun = false

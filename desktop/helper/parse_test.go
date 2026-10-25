@@ -48,6 +48,7 @@ default            192.168.110.1      UGScg                 en0
 }
 
 func TestFilterResolvers(t *testing.T) {
-	require.Equal(t, []string{"192.168.1.1", "fe80::1"},
-		filterResolvers([]string{"", "192.168.1.1", fakeDNSIP, "dns.google", "fe80::1"}))
+	require.Equal(t, []string{"192.168.1.1", "1.1.1.1", "2001:4860:4860::8888"},
+		filterResolvers([]string{"", "2001:4860:4860::8888", "192.168.1.1", fakeDNSIP, "dns.google",
+			"fe80::1", "fec0:0:0:ffff::1", "127.0.0.1", "::", "1.1.1.1"}))
 }

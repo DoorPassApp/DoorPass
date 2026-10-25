@@ -71,15 +71,25 @@ func parseDefaultRoute(out, exclude string) (netif, gateway string) {
 	return "", ""
 }
 
-// filterResolvers drops empty entries, non-IP entries and the fake DNS address.
+// filterResolvers keeps the DNS servers worth asking: real unicast addresses,
+// IPv4 first. It drops the fake DNS address and the placeholders Windows
+// lists on adapters without IPv6 DNS (fec0:0:0:ffff::1-3, site-local), which
+// never answer and would stall lookups for seconds.
 func filterResolvers(ips []string) []string {
-	var out []string
-	for _, ip := range ips {
-		ip = strings.TrimSpace(ip)
-		if net.ParseIP(ip) == nil || ip == fakeDNSIP {
+	var v4, v6 []string
+	for _, s := range ips {
+		s = strings.TrimSpace(s)
+		ip := net.ParseIP(s)
+		if ip == nil || s == fakeDNSIP || ip.IsLoopback() || ip.IsUnspecified() || ip.IsLinkLocalUnicast() || siteLocal.Contains(ip) {
 			continue
 		}
-		out = append(out, ip)
+		if ip.To4() != nil {
+			v4 = append(v4, s)
+		} else {
+			v6 = append(v6, s)
+		}
 	}
-	return out
+	return append(v4, v6...)
 }
+
+var _, siteLocal, _ = net.ParseCIDR("fec0::/10")

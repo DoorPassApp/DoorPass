@@ -339,3 +339,6 @@ func uninstall() error {
 	recoverNetwork()
 	return errors.Join(os.Remove(plistPath), os.Remove(helperPath), os.RemoveAll(dataDir))
 }
+
+// keepTun: a utun device is created instantly, so each session gets its own.
+const keepTun = false

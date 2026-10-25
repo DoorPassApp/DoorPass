@@ -35,12 +35,12 @@ func serve(srv *http.Server, m *manager) error {
 	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
 	select {
 	case err := <-errc:
-		m.disconnect()
+		m.shutdown()
 		return err
 	case s := <-sig:
 		slog.Info("stopping", "signal", s)
 	}
-	m.disconnect()
+	m.shutdown()
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil && !errors.Is(err, http.ErrServerClosed) {
